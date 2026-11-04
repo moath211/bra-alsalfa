@@ -1,11 +1,1 @@
-{
-  "name": "برا السالفة",
-  "short_name": "برا السالفة",
-  "lang": "ar",
-  "dir": "rtl",
-  "start_url": "./",
-  "scope": "./",
-  "display": "standalone",
-  "background_color": "#101522",
-  "theme_color": "#101522"
-}
+{"name":"برا السالفة","short_name":"برا السالفة","start_url":"./","display":"standalone","background_color":"#101522","theme_color":"#101522","lang":"ar","dir":"rtl"}
