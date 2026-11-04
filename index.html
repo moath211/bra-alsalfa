@@ -3068,8 +3068,7 @@
 // Supabase public client: publishable key is intended for browser use; database RLS protects writes.
 const SB_URL = "https://gpqzynlupmszziqjwtdc.supabase.co";
 const SB_KEY = "sb_publishable_EejZqJdwBuOcOpo4fUEeZA_MSr7NVrm";
-const sb = window.supabase?.createClient ? window.supabase.createClient(SB_URL, SB_KEY) : null;
-if (!sb) console.info('Supabase unavailable: local play remains available offline.');
+const sb = window.supabase.createClient(SB_URL, SB_KEY);
 const GAME_CATEGORIES = {food:"أكلات شعبية وحلويات",clothes:"ملابس وأزياء سعودية",animals:"حيوانات وطيور",places:"مدن ومعالم سعودية",slang:"أمثال ومصطلحات سعودية",sports:"أندية ورياضة سعودية",cars:"سيارات وشركات",tech:"تقنية وألعاب"};
 let suggestMode = 'word';
 function setSuggestMode(mode) {
@@ -3081,7 +3080,6 @@ function setSuggestMode(mode) {
  document.getElementById('suggest-status').textContent = suggestMode === 'category' ? 'أرسل اسم الفئة وثلاث سوالف على الأقل.' : 'سيتم فحص السالفة ثم إرسالها للمراجعة.';
 }
 async function loadAdminGameSettings() {
- if (!sb) return;
  try {
   const {data,error}=await sb.from('app_settings').select('value').eq('key','game_ui').maybeSingle();
   if(error || !data?.value) return;
@@ -3105,7 +3103,6 @@ function openSuggestModal() {
 }
 function closeSuggestModal() { document.getElementById('suggest-modal').classList.add('hidden'); }
 async function submitWordSuggestion() {
- if (!sb || !navigator.onLine) { document.getElementById('suggest-status').textContent='إرسال الاقتراحات يحتاج إلى اتصال بالإنترنت.'; return; }
  if (suggestMode === 'category') {
   const title=document.getElementById('suggest-category-title').value.replace(/\s+/g,' ').trim();
   const raw=document.getElementById('suggest-category-words').value;
@@ -3152,27 +3149,7 @@ async function submitWordSuggestion() {
  finally {btn.disabled=false;}
 
 }
-function restoreOfflineGameData() {
- try {
-  const raw=localStorage.getItem('barrasalfa_offline_data_v1');
-  if(!raw) return false;
-  const saved=JSON.parse(raw);
-  if(saved && saved.categories && typeof saved.categories==='object') {
-   for(const [id,cat] of Object.entries(saved.categories)) if(categoriesDB[id] && Array.isArray(cat.words)) {
-    const merged=[...new Set([...(categoriesDB[id].words||[]),...cat.words].filter(x=>typeof x==='string'&&x.trim()))];
-    categoriesDB[id].words=merged;
-    if(cat.title) categoriesDB[id].title=cat.title;
-    if(cat.isOpen!==undefined) categoriesDB[id].isOpen=cat.isOpen;
-    if(cat.comingSoon!==undefined) categoriesDB[id].comingSoon=cat.comingSoon;
-   }
-   if(saved.imageCategories && saved.imageItems) { imageCategoriesDB=saved.imageCategories; imageItemsDB=saved.imageItems; }
-   renderCategories(); renderImageCategories(); return true;
-  }
- } catch(e) { console.warn('Offline game data could not be restored.',e); }
- return false;
-}
 async function loadWordsFromSupabase() {
- if (!sb || !navigator.onLine) { restoreOfflineGameData(); return; }
  try {
    const [{data:categoryRows,error:categoryError},{data,error}] = await Promise.all([
      sb.from('game_categories').select('id,title,icon,is_open,coming_soon').order('title'),
@@ -3208,9 +3185,8 @@ async function loadWordsFromSupabase() {
      renderImageCategories();
    } catch(imageErr) { console.warn('Image mode data unavailable. Run image mode SQL setup.',imageErr); }
    renderCategories();
-   try { localStorage.setItem('barrasalfa_offline_data_v1', JSON.stringify({categories:categoriesDB,imageCategories:imageCategoriesDB,imageItems:imageItemsDB,savedAt:Date.now()})); } catch(cacheErr) { console.warn('Could not save offline dictionary.',cacheErr); }
    loadAdminGameSettings();
- } catch(err) { console.warn('Supabase dictionary/settings not loaded; using built-in dictionary.',err); restoreOfflineGameData(); loadAdminGameSettings(); }
+ } catch(err) { console.warn('Supabase dictionary/settings not loaded; using built-in dictionary.',err); loadAdminGameSettings(); }
 }
 window.addEventListener('load',()=>{ loadWordsFromSupabase(); });
 </script>
@@ -3235,7 +3211,7 @@ function onlinePresenceMembers(){if(!onlineChannel)return [];const state=onlineC
 function onlineRenderLobby(){const code=document.getElementById('online-room-code-display');if(code)code.textContent=onlineRoomCode;onlineMembers=onlinePresenceMembers();const count=document.getElementById('online-player-count');if(count)count.textContent=`${onlineMembers.length}/10`;const list=document.getElementById('online-members-list');if(list){list.innerHTML='';onlineMembers.forEach((m,i)=>{const row=document.createElement('div');row.className='flex items-center justify-between bg-[#101522] border border-slate-800 rounded-xl px-3 py-2';const name=document.createElement('span');name.className='text-sm font-bold text-offwhite';name.textContent=m.name+(m.id===onlineHostId?' 👑':'');const status=document.createElement('span');status.className='text-[10px] text-softteal';status.textContent=m.id===onlineClientId?'أنت':`لاعب ${i+1}`;row.append(name,status);list.appendChild(row);});}document.getElementById('online-host-settings')?.classList.toggle('hidden',!onlineIsHost);document.getElementById('online-guest-note')?.classList.toggle('hidden',onlineIsHost);if(onlineIsHost&&!document.getElementById('online-category-select')?.options.length)populateOnlineCategorySelect();}
 let onlineHostId='';
 function populateOnlineCategorySelect(){const mode=document.getElementById('online-mode-select')?.value||'words';const sel=document.getElementById('online-category-select');if(!sel)return;sel.innerHTML='';if(mode==='images'){Object.entries(imageCategoriesDB||{}).filter(([id,c])=>c.isOpen!==false&&!c.comingSoon&&(imageItemsDB[id]||[]).length).forEach(([id,c])=>{const o=document.createElement('option');o.value=id;o.textContent=c.title;sel.appendChild(o);});}else{Object.entries(categoriesDB||{}).filter(([id,c])=>c.isOpen!==false&&!c.comingSoon&&(c.words||[]).length).forEach(([id,c])=>{const o=document.createElement('option');o.value=id;o.textContent=c.title;sel.appendChild(o);});}if(!sel.options.length){const o=document.createElement('option');o.value='';o.textContent='لا توجد فئات متاحة';sel.appendChild(o);}}
-async function onlineConnect(code,isHost){if(!navigator.onLine||!sb){showToast('الغرف الأونلاين تحتاج إلى اتصال بالإنترنت. يمكنك لعب الوضع المحلي.');return;}onlineRoomCode=code;onlineIsHost=isHost;onlineHostId=isHost?onlineClientId:'';onlineActive=true;onlineMyName=onlineCleanName(document.getElementById('online-player-name')?.value);onlineMembers=[];onlinePublicState={phase:'lobby'};onlineMyVoted=false;onlineVotes={};onlineReadyPlayers={};
+async function onlineConnect(code,isHost){if(typeof sb==='undefined'||!sb){showToast('خدمة الاتصال غير جاهزة.');return;}onlineRoomCode=code;onlineIsHost=isHost;onlineHostId=isHost?onlineClientId:'';onlineActive=true;onlineMyName=onlineCleanName(document.getElementById('online-player-name')?.value);onlineMembers=[];onlinePublicState={phase:'lobby'};onlineMyVoted=false;onlineVotes={};onlineReadyPlayers={};
  const channel=sb.channel('bra-alsalfa-'+code,{config:{broadcast:{self:false},presence:{key:onlineClientId}}});onlineChannel=channel;
  channel.on('presence',{event:'sync'},()=>{onlineMembers=onlinePresenceMembers();onlineRenderLobby();if(onlineIsHost&&(!onlinePublicState.phase||onlinePublicState.phase==='lobby'))onlinePublishLobby();else if(onlineIsHost&&onlineHostState){onlineMembers.filter(m=>!onlineHostState.members.some(x=>x.id===m.id)).forEach(m=>onlineSend('private_reject',{to:m.id}));}if(onlineMicEnabled)onlineConnectVoicePeers();if(!onlineIsHost&&onlineHostId&&!onlineMembers.some(m=>m.id===onlineHostId)){showToast('غادر مضيف الغرفة.');onlineLeaveCleanup();showScreen('online-entry');}});
  channel.on('broadcast',{event:'room_state'},({payload})=>onlineHandlePublicState(payload));
@@ -3300,14 +3276,24 @@ window.startNextRound=function(){if(!onlineActive){startNewGameRound();return;}i
 </script>
 
 
+
+<!-- Recovery: disable the experimental offline worker without changing game logic. -->
 <script>
-// Offline support: cache the app shell and the CDN assets after their first online load.
-if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js', { scope: './' })
-      .catch(error => console.warn('Offline support could not be enabled:', error));
-  });
-}
+(async function disableExperimentalOfflineWorker(){
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const basePath = new URL('./', location.href).pathname;
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.filter(reg => {
+      try { return new URL(reg.scope).origin === location.origin && new URL(reg.scope).pathname.startsWith(basePath); }
+      catch (_) { return false; }
+    }).map(reg => reg.unregister()));
+    if ('caches' in window) {
+      const names = await caches.keys();
+      await Promise.all(names.filter(name => name.startsWith('bra-alsalfa-')).map(name => caches.delete(name)));
+    }
+  } catch (error) { console.warn('Offline recovery cleanup:', error); }
+})();
 </script>
 
 </body>
